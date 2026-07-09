@@ -2,9 +2,9 @@
 
 __init__.py — Package initialization with version information
 cli.py — CLI module with Typer application for quickstart project scaffolding
-  TemplateChoice (class) — 22-28 — Enum of valid template choices exposed to argument parser
-  DockerVenvChoice (class) — 31-35 — Enum of valid docker-venv modes exposed to argument parser
-  quickstart (function) — 39-143 — Typer command for scaffolding new projects with configurable options
+  TemplateChoice (class) — 23-29 — Enum of valid template choices exposed to argument parser
+  DockerVenvChoice (class) — 32-36 — Enum of valid docker-venv choices exposed to argument parser
+  quickstart (function) — 40-151 — Typer command for scaffolding new projects with configurable options
 config.py — Configuration module for quickstart settings with template enum and validation
   Template (class) — 11-17 — Enum of permitted project template choices
   ConfigError (class) — 20-21 — Exception raised for invalid configuration combinations
