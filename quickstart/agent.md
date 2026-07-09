@@ -7,5 +7,8 @@ config.py — Configuration module for quickstart settings with template enum an
   ConfigError (class) — 20-21 — Exception raised for invalid configuration combinations
   ProjectConfig (class) — 25-149 — Dataclass holding all settings needed to scaffold a new project
   from_cli_inputs (method) — 82-149 — Construct ProjectConfig from parsed CLI argument values
-runner.py — Runner module for quickstart execution logic
+runner.py — Runner module for quickstart execution logic with planner and executor
+  _NoOpStep (class) — 13-32 — Placeholder step performing no side effects during scaffolding
+  planner (function) — 39-115 — Assemble ordered plan from config with deterministic step selection
+  run (function) — 122-142 — Execute plan steps in order, halting on first failure
 steps/ — Step implementations for quickstart workflows
