@@ -10,8 +10,14 @@ config.py — Configuration module for quickstart settings with template enum an
   ConfigError (class) — 20-21 — Exception raised for invalid configuration combinations
   ProjectConfig (class) — 25-149 — Dataclass holding all settings needed to scaffold a new project
   from_cli_inputs (method) — 82-149 — Construct ProjectConfig from parsed CLI argument values
+preflight.py — Lightweight helpers that verify required binaries are available on system PATH
+  check_uv (function) — 20-41 — Return resolved path to uv binary or None if absent
+  check_git (function) — 44-65 — Return resolved path to git binary or None if absent
 runner.py — Runner module for quickstart execution logic with planner and executor
   _NoOpStep (class) — 13-32 — Placeholder step performing no side effects during scaffolding
   planner (function) — 39-115 — Assemble ordered plan from config with deterministic step selection
   run (function) — 122-142 — Execute plan steps in order, halting on first failure
 steps/ — Step implementations for quickstart workflows
+subprocess_runner.py — Subprocess runner primitives for executing external commands with output capture
+  CommandError (class) — 21-47 — Exception raised when external command exits with non-zero status
+  run_command (function) — 55-105 — Run command inside working directory, capturing stdout and stderr
