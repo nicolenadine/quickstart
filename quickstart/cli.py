@@ -10,6 +10,7 @@ import typer
 
 from quickstart.config import ConfigError, ProjectConfig
 from quickstart.runner import planner, run
+from quickstart.steps.create_project import CreateProjectStep
 
 
 app = typer.Typer(
@@ -131,13 +132,20 @@ def quickstart(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from None
 
+    # Build the create-project step (carries dry_run and the raw --path value).
+    create_step = CreateProjectStep(dry_run=dry_run, path=path)
+
     # Build the ordered plan.
     plan = planner(config)
 
     if dry_run:
+        create_step.execute(config)
         for step in plan:
             typer.echo(step.description)
         raise typer.Exit(code=0)
+
+    # Create the project directory before executing the remaining plan.
+    create_step.execute(config)
 
     # Execute the plan via the runner (steps are no-op placeholders at this stage).
     run(plan, config)
