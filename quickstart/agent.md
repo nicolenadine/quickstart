@@ -10,6 +10,10 @@ config.py — Configuration module for quickstart settings with template enum an
   ConfigError (class) — 20-21 — Exception raised for invalid configuration combinations
   ProjectConfig (class) — 25-149 — Dataclass holding all settings needed to scaffold a new project
   from_cli_inputs (method) — 82-149 — Construct ProjectConfig from parsed CLI argument values
+paths.py — Name validation and target-path resolution for project creation
+  PathsError (class) — 27-28 — Exception for validation and path resolution failures
+  validate_project_name (function) — 36-76 — Validates project name characters and format
+  resolve_target_path (function) — 84-133 — Resolves absolute target directory with parent handling
 preflight.py — Lightweight helpers that verify required binaries are available on system PATH
   check_uv (function) — 20-41 — Return resolved path to uv binary or None if absent
   check_git (function) — 44-65 — Return resolved path to git binary or None if absent
