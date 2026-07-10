@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from quickstart.cli import DockerVenvChoice, TemplateChoice, app
 from quickstart.config import ProjectConfig, Template
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 def _invoke(*args: str):
