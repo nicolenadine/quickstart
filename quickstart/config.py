@@ -45,6 +45,7 @@ class ProjectConfig:
     python_version: str = "3.11"
 
     # Feature flags — defaults match the task specification
+    uv: bool = True
     docker: bool = True
     github_create: bool = False
     vscode_open: bool = True
@@ -86,6 +87,7 @@ class ProjectConfig:
         target_path: Path,
         template: str = Template.basic.value,
         python_version: str = "3.11",
+        uv: bool = True,
         docker: bool = True,
         github_create: bool = False,
         vscode_open: bool = True,
@@ -107,6 +109,9 @@ class ProjectConfig:
             One of ``basic``, ``lib``, ``cli``, or ``data``.
         python_version:
             Python interpreter version string (e.g. ``"3.11"``).
+        uv:
+            Whether to use uv for project initialisation and environment
+            management.
         docker:
             Whether to add Docker support.
         github_create:
@@ -139,6 +144,7 @@ class ProjectConfig:
             target_path=target_path,
             template=template,  # type: ignore[arg-type]  # coerced in __post_init__
             python_version=python_version,
+            uv=uv,
             docker=docker,
             github_create=github_create,
             vscode_open=vscode_open,

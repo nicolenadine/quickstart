@@ -9,8 +9,10 @@ from typing import Optional
 import typer
 
 from quickstart.config import ConfigError, ProjectConfig
+from quickstart.preflight import check_git, check_uv
 from quickstart.runner import planner, run
 from quickstart.steps.create_project import CreateProjectStep
+from quickstart.subprocess_runner import CommandError
 
 
 app = typer.Typer(
@@ -58,7 +60,7 @@ def quickstart(
         help="Python interpreter version (e.g. 3.11).",
     ),
     uv: bool = typer.Option(
-        False,
+        True,
         "--uv/--no-uv",
         help="Use uv for environment management.",
     ),
@@ -120,6 +122,7 @@ def quickstart(
             target_path=target_path,
             template=template.value,
             python_version=python,
+            uv=uv,
             docker=docker,
             github_create=gh,
             vscode_open=open_,
@@ -135,8 +138,9 @@ def quickstart(
     # Build the create-project step (carries dry_run and the raw --path value).
     create_step = CreateProjectStep(dry_run=dry_run, path=path)
 
-    # Build the ordered plan.
-    plan = planner(config)
+    # Build the ordered plan (forwarding the raw --path value, same as
+    # create_step above, so uv_init/git_init resolve the same real directory).
+    plan = planner(config, path=path)
 
     if dry_run:
         create_step.execute(config)
@@ -144,8 +148,34 @@ def quickstart(
             typer.echo(step.description)
         raise typer.Exit(code=0)
 
+    # Preflight uv/git availability before any directory is created, so a
+    # missing binary never leaves a half-created project behind. Skipped in
+    # dry-run above -- these are read-only PATH lookups (shutil.which), not
+    # real subprocess execution, but the plan there only ever describes what
+    # would run.
+    if config.uv:
+        if check_uv() is None:
+            typer.echo(
+                "Error: uv is required for project initialisation but was not found on "
+                "PATH. Rerun with --no-uv to skip uv and initialise Git directly instead.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+    elif config.git:
+        if check_git() is None:
+            typer.echo(
+                "Error: git is required to initialise a local repository but was not "
+                "found on PATH. Rerun with --no-git to skip Git initialisation.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
     # Create the project directory before executing the remaining plan.
     create_step.execute(config)
 
-    # Execute the plan via the runner (steps are no-op placeholders at this stage).
-    run(plan, config)
+    # Execute the plan via the runner.
+    try:
+        run(plan, config)
+    except CommandError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None

@@ -1,5 +1,6 @@
 ## Files
 
-test_cli.py — Tests for CLI module covering options, templates, docker venv, visibility conflicts, dry-run, and defaults
-test_paths.py — Tests for name validation, path resolution, and directory-creation behavior
-test_planner.py — Tests for planner and runner modules validating step ordering, configuration handling, and side effects
+test_cli.py — CLI interface tests covering help output, validation, defaults, and dry-run behavior
+test_paths.py — Path validation, target resolution, and project directory creation tests
+test_planner.py — Planner and runner tests for step ordering, execution flow, and side-effect isolation
+test_uv.py — uv and git initialization step tests covering command construction and CLI integration

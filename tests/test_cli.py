@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from quickstart.cli import DockerVenvChoice, TemplateChoice, app
 from quickstart.config import ProjectConfig, Template
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 def _invoke(*args: str):
@@ -19,6 +19,31 @@ def _combined(result) -> str:
     """Merge stdout and stderr into a single string for assertion convenience."""
     stderr = getattr(result, "stderr", "") or ""
     return (result.output or "") + stderr
+
+
+def _step_lines(result) -> list[str]:
+    """Non-blank output lines, excluding the resolved target-path echo.
+
+    Dry-run output always starts with the resolved absolute target path
+    (see CreateProjectStep.execute), which lives under a pytest tmp_path
+    named after the current test function.
+    """
+    lines = [ln for ln in result.output.splitlines() if ln.strip()]
+    return lines[1:]
+
+
+def _step_index(lines: list[str], phrase: str) -> int | None:
+    """Index of the line containing the exact step-description phrase.
+
+    The scaffold line embeds the raw target path (see runner.planner's
+    "Scaffold ... at {target_path}" description), and that path is a
+    pytest tmp_path named after the current test function -- which can
+    itself contain a step keyword (e.g. "test_dry_run_git_before_docker0"
+    contains both "git" and "docker"). Matching on the full, fixed
+    step-description phrase (rather than a loose single-word substring)
+    avoids false hits against that path.
+    """
+    return next((i for i, ln in enumerate(lines) if phrase in ln.lower()), None)
 
 
 # ---------------------------------------------------------------------------
@@ -226,47 +251,37 @@ class TestDryRun:
 
     def test_dry_run_github_step_absent_when_gh_not_given(self, tmp_path):
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
-        assert "github" not in result.output.lower()
+        lines = _step_lines(result)
+        assert _step_index(lines, "github repository") is None
 
     # ---- ordering ---------------------------------------------------------
 
     def test_dry_run_scaffold_before_git(self, tmp_path):
+        # uv is enabled by default and owns local Git initialisation itself,
+        # so the git-related step here is "uv init ...", not a separate
+        # "Initialise a local Git repository" placeholder.
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
-        lines = [ln for ln in result.output.splitlines() if ln.strip()]
-        scaffold_idx = next(
-            (i for i, ln in enumerate(lines) if "demoproject" in ln), None
-        )
-        git_idx = next(
-            (i for i, ln in enumerate(lines) if "git" in ln.lower()), None
-        )
+        lines = _step_lines(result)
+        scaffold_idx = _step_index(lines, "scaffold ")
+        git_idx = _step_index(lines, "uv init")
         assert scaffold_idx is not None, "scaffold step not found in output"
-        assert git_idx is not None, "git step not found in output"
+        assert git_idx is not None, "uv init step not found in output"
         assert scaffold_idx < git_idx
 
     def test_dry_run_git_before_docker(self, tmp_path):
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
-        lines = [ln for ln in result.output.splitlines() if ln.strip()]
-        git_idx = next(
-            (i for i, ln in enumerate(lines) if "git" in ln.lower()), None
-        )
-        docker_idx = next(
-            (i for i, ln in enumerate(lines) if "docker" in ln.lower()), None
-        )
-        assert git_idx is not None, "git step not found in output"
+        lines = _step_lines(result)
+        git_idx = _step_index(lines, "uv init")
+        docker_idx = _step_index(lines, "add docker support files")
+        assert git_idx is not None, "uv init step not found in output"
         assert docker_idx is not None, "docker step not found in output"
         assert git_idx < docker_idx
 
     def test_dry_run_docker_before_vscode(self, tmp_path):
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
-        lines = [ln for ln in result.output.splitlines() if ln.strip()]
-        docker_idx = next(
-            (i for i, ln in enumerate(lines) if "docker" in ln.lower()), None
-        )
-        vscode_idx = next(
-            (i for i, ln in enumerate(lines)
-             if "vs code" in ln.lower() or "vscode" in ln.lower()),
-            None,
-        )
+        lines = _step_lines(result)
+        docker_idx = _step_index(lines, "add docker support files")
+        vscode_idx = _step_index(lines, "open the project in vs code")
         assert docker_idx is not None, "docker step not found in output"
         assert vscode_idx is not None, "vscode step not found in output"
         assert docker_idx < vscode_idx
@@ -276,35 +291,31 @@ class TestDryRun:
         result = _invoke(
             "demoproject", "--path", str(tmp_path), "--gh", "--dry-run"
         )
-        lines = [ln.lower() for ln in result.output.splitlines() if ln.strip()]
+        lines = _step_lines(result)
 
-        def idx_of(keyword: str) -> int:
-            for i, ln in enumerate(lines):
-                if keyword in ln:
-                    return i
-            raise AssertionError(f"keyword {keyword!r} not found in output lines")
+        def idx_of(phrase: str) -> int:
+            found = _step_index(lines, phrase)
+            if found is None:
+                raise AssertionError(f"phrase {phrase!r} not found in output lines")
+            return found
 
-        scaffold_i = idx_of("demoproject")
-        git_i = idx_of("git")
-        docker_i = idx_of("docker")
-        github_i = idx_of("github")
-        vscode_i = next(
-            (i for i, ln in enumerate(lines) if "vs code" in ln or "vscode" in ln),
-            None,
-        )
-        assert vscode_i is not None, "vscode step not found"
+        scaffold_i = idx_of("scaffold ")
+        git_i = idx_of("uv init")
+        docker_i = idx_of("add docker support files")
+        github_i = idx_of("github repository")
+        vscode_i = idx_of("open the project in vs code")
         assert scaffold_i < git_i < docker_i < github_i < vscode_i
 
     # ---- no output when all optional steps disabled -----------------------
 
-    def test_dry_run_minimal_prints_only_one_line(self, tmp_path):
+    def test_dry_run_minimal_prints_no_optional_steps(self, tmp_path):
         result = _invoke(
             "minimal", "--path", str(tmp_path),
-            "--no-git", "--no-docker", "--no-open", "--dry-run",
+            "--no-uv", "--no-git", "--no-docker", "--no-open", "--dry-run",
         )
         assert result.exit_code == 0
-        lines = [ln for ln in result.output.splitlines() if ln.strip()]
-        assert len(lines) == 1, f"Expected 1 line, got {len(lines)}: {lines}"
+        lines = _step_lines(result)
+        assert len(lines) == 1, f"Expected 1 step line, got {len(lines)}: {lines}"
 
     def test_dry_run_minimal_only_scaffold_step(self, tmp_path):
         result = _invoke(

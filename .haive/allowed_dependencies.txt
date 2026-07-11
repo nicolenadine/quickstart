@@ -1,0 +1,7 @@
+# Dependencies quickstart is expected to need, approved during planning.
+# One package name per line; # starts a comment. haive's DependencyApprovalGate
+# checks new pyproject.toml dependencies against this list before installing
+# them; anything not listed here requires a human to add it and re-run the task.
+
+typer
+pytest
