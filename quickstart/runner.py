@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Optional
+
 from quickstart.config import ProjectConfig
 from quickstart.steps import Plan, Step
+from quickstart.steps.uv_init import GitInitStep, UvInitStep
 
 
 # ---------------------------------------------------------------------------
@@ -36,18 +40,20 @@ class _NoOpStep:
 # Planner
 # ---------------------------------------------------------------------------
 
-def planner(config: ProjectConfig) -> Plan:
+def planner(config: ProjectConfig, path: Optional[Path] = None) -> Plan:
     """Assemble an ordered :class:`~quickstart.steps.Plan` from *config*.
 
     The steps are chosen and ordered deterministically based on the feature
-    flags present in *config*.  In this milestone every step is a no-op
-    placeholder — the goal is to establish the correct frame and ordering
-    for future real implementations.
+    flags present in *config*.
 
     The fixed ordering is:
 
     1. ``scaffold``      – always present; creates the project skeleton.
-    2. ``git_init``      – present when ``config.git`` is ``True``.
+    2. ``uv_init``        – present when ``config.uv`` is ``True``; owns local
+       Git initialisation itself (via ``--vcs none`` when ``config.git`` is
+       ``False``), so ``git_init`` never also appears alongside it.
+       ``git_init`` – present when ``config.uv`` is ``False`` and
+       ``config.git`` is ``True`` (direct ``git init`` fallback).
     3. ``docker``        – present when ``config.docker`` is ``True``.
     4. ``github_create`` – present when ``config.github_create`` is ``True``.
     5. ``vscode_open``   – present when ``config.vscode_open`` is ``True``.
@@ -56,6 +62,10 @@ def planner(config: ProjectConfig) -> Plan:
     ----------
     config:
         Project configuration driving the plan.
+    path:
+        The raw value of the ``--path`` CLI option, or ``None`` to use the
+        default workspace -- forwarded to ``uv_init``/``git_init`` so they
+        resolve the same real target directory as ``CreateProjectStep``.
 
     Returns
     -------
@@ -75,14 +85,13 @@ def planner(config: ProjectConfig) -> Plan:
         )
     )
 
-    # Step 2 – initialise a local Git repository when requested.
-    if config.git:
-        steps.append(
-            _NoOpStep(
-                name="git_init",
-                description="Initialise a local Git repository",
-            )
-        )
+    # Step 2 – initialise the project via uv, or fall back to a direct git
+    # init when uv is disabled. uv owns local Git itself on the default
+    # path, so these are mutually exclusive, never both present.
+    if config.uv:
+        steps.append(UvInitStep(config, path=path))
+    elif config.git:
+        steps.append(GitInitStep(config, path=path))
 
     # Step 3 – add Docker support when requested.
     if config.docker:

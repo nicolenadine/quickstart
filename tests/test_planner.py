@@ -25,10 +25,32 @@ def full_config(tmp_path) -> ProjectConfig:
         project_name="testproject",
         target_path=tmp_path,
         template=Template.basic,
+        uv=True,
         docker=True,
         github_create=True,
         vscode_open=True,
         git=True,
+    )
+
+
+@pytest.fixture()
+def placeholder_only_config(tmp_path) -> ProjectConfig:
+    """Config exercising only the still-placeholder steps (docker/github/vscode).
+
+    uv and git are both disabled, so planner() adds neither uv_init nor
+    git_init -- the only steps present are scaffold and the three remaining
+    _NoOpStep placeholders, which run() must still execute with zero real
+    side effects.
+    """
+    return ProjectConfig(
+        project_name="testproject",
+        target_path=tmp_path,
+        template=Template.basic,
+        uv=False,
+        git=False,
+        docker=True,
+        github_create=True,
+        vscode_open=True,
     )
 
 
@@ -39,6 +61,7 @@ def minimal_config(tmp_path) -> ProjectConfig:
         project_name="minimal",
         target_path=tmp_path,
         template=Template.basic,
+        uv=False,
         docker=False,
         github_create=False,
         vscode_open=False,
@@ -102,12 +125,12 @@ class TestPlannerProducesOrderedPlan:
 
     def test_full_plan_step_order(self, full_config):
         names = [s.name for s in planner(full_config)]
-        assert names == ["scaffold", "git_init", "docker", "github_create", "vscode_open"]
+        assert names == ["scaffold", "uv_init", "docker", "github_create", "vscode_open"]
 
     # ---- optional steps absent in minimal ---------------------------------
 
     @pytest.mark.parametrize(
-        "absent", ["git_init", "docker", "github_create", "vscode_open"]
+        "absent", ["uv_init", "git_init", "docker", "github_create", "vscode_open"]
     )
     def test_optional_step_absent_in_minimal_config(self, minimal_config, absent):
         names = [s.name for s in planner(minimal_config)]
@@ -115,19 +138,41 @@ class TestPlannerProducesOrderedPlan:
 
     # ---- individual flag → step mapping ------------------------------------
 
-    def test_git_step_present_when_git_true(self, tmp_path):
+    def test_uv_step_present_when_uv_true(self, tmp_path):
         config = ProjectConfig(
             project_name="p", target_path=tmp_path,
-            git=True, docker=False, github_create=False, vscode_open=False,
+            uv=True, git=True, docker=False, github_create=False, vscode_open=False,
         )
-        assert "git_init" in [s.name for s in planner(config)]
+        assert "uv_init" in [s.name for s in planner(config)]
 
-    def test_git_step_absent_when_git_false(self, tmp_path):
+    def test_uv_step_present_regardless_of_git_flag(self, tmp_path):
+        # uv owns local Git itself (via --vcs none when git is disabled), so
+        # the uv step is present whenever uv is enabled, independent of git.
         config = ProjectConfig(
             project_name="p", target_path=tmp_path,
-            git=False, docker=False, github_create=False, vscode_open=False,
+            uv=True, git=False, docker=False, github_create=False, vscode_open=False,
         )
-        assert "git_init" not in [s.name for s in planner(config)]
+        names = [s.name for s in planner(config)]
+        assert "uv_init" in names
+        assert "git_init" not in names
+
+    def test_git_step_present_when_uv_false_and_git_true(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=False, git=True, docker=False, github_create=False, vscode_open=False,
+        )
+        names = [s.name for s in planner(config)]
+        assert "git_init" in names
+        assert "uv_init" not in names
+
+    def test_neither_step_present_when_uv_false_and_git_false(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=False, git=False, docker=False, github_create=False, vscode_open=False,
+        )
+        names = [s.name for s in planner(config)]
+        assert "uv_init" not in names
+        assert "git_init" not in names
 
     def test_docker_step_present_when_docker_true(self, tmp_path):
         config = ProjectConfig(
@@ -360,23 +405,23 @@ class TestNoSideEffects:
         planner(config)
         assert {p for p in tmp_path.rglob("*") if p.is_file()} == before
 
-    def test_run_creates_no_filesystem_entries(self, full_config):
-        plan = planner(full_config)
-        before = set(full_config.target_path.rglob("*"))
-        run(plan, full_config)
-        assert set(full_config.target_path.rglob("*")) == before
+    def test_run_creates_no_filesystem_entries(self, placeholder_only_config):
+        plan = planner(placeholder_only_config)
+        before = set(placeholder_only_config.target_path.rglob("*"))
+        run(plan, placeholder_only_config)
+        assert set(placeholder_only_config.target_path.rglob("*")) == before
 
-    def test_run_creates_no_directories(self, full_config):
-        plan = planner(full_config)
-        before = {p for p in full_config.target_path.rglob("*") if p.is_dir()}
-        run(plan, full_config)
-        assert {p for p in full_config.target_path.rglob("*") if p.is_dir()} == before
+    def test_run_creates_no_directories(self, placeholder_only_config):
+        plan = planner(placeholder_only_config)
+        before = {p for p in placeholder_only_config.target_path.rglob("*") if p.is_dir()}
+        run(plan, placeholder_only_config)
+        assert {p for p in placeholder_only_config.target_path.rglob("*") if p.is_dir()} == before
 
-    def test_run_creates_no_files(self, full_config):
-        plan = planner(full_config)
-        before = {p for p in full_config.target_path.rglob("*") if p.is_file()}
-        run(plan, full_config)
-        assert {p for p in full_config.target_path.rglob("*") if p.is_file()} == before
+    def test_run_creates_no_files(self, placeholder_only_config):
+        plan = planner(placeholder_only_config)
+        before = {p for p in placeholder_only_config.target_path.rglob("*") if p.is_file()}
+        run(plan, placeholder_only_config)
+        assert {p for p in placeholder_only_config.target_path.rglob("*") if p.is_file()} == before
 
     # ---- subprocess --------------------------------------------------------
 
@@ -410,35 +455,35 @@ class TestNoSideEffects:
         monkeypatch.setattr(subprocess, "check_output", _fail)
         planner(full_config)
 
-    def test_run_does_not_invoke_subprocess_run(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_subprocess_run(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("subprocess.run was invoked during run()")
         monkeypatch.setattr(subprocess, "run", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
-    def test_run_does_not_invoke_subprocess_popen(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_subprocess_popen(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("subprocess.Popen was invoked during run()")
         monkeypatch.setattr(subprocess, "Popen", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
-    def test_run_does_not_invoke_subprocess_call(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_subprocess_call(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("subprocess.call was invoked during run()")
         monkeypatch.setattr(subprocess, "call", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
-    def test_run_does_not_invoke_subprocess_check_call(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_subprocess_check_call(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("subprocess.check_call was invoked during run()")
         monkeypatch.setattr(subprocess, "check_call", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
-    def test_run_does_not_invoke_subprocess_check_output(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_subprocess_check_output(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("subprocess.check_output was invoked during run()")
         monkeypatch.setattr(subprocess, "check_output", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
     # ---- os.system ---------------------------------------------------------
 
@@ -448,11 +493,11 @@ class TestNoSideEffects:
         monkeypatch.setattr(os, "system", _fail)
         planner(full_config)
 
-    def test_run_does_not_invoke_os_system(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_os_system(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("os.system was invoked during run()")
         monkeypatch.setattr(os, "system", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
     # ---- os.mkdir / os.makedirs -------------------------------------------
 
@@ -462,11 +507,11 @@ class TestNoSideEffects:
         monkeypatch.setattr(os, "mkdir", _fail)
         planner(full_config)
 
-    def test_run_does_not_invoke_os_mkdir(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_os_mkdir(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("os.mkdir was invoked during run()")
         monkeypatch.setattr(os, "mkdir", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)
 
     def test_planner_does_not_invoke_os_makedirs(self, full_config, monkeypatch):
         def _fail(*a, **kw):
@@ -474,8 +519,8 @@ class TestNoSideEffects:
         monkeypatch.setattr(os, "makedirs", _fail)
         planner(full_config)
 
-    def test_run_does_not_invoke_os_makedirs(self, full_config, monkeypatch):
+    def test_run_does_not_invoke_os_makedirs(self, placeholder_only_config, monkeypatch):
         def _fail(*a, **kw):
             raise AssertionError("os.makedirs was invoked during run()")
         monkeypatch.setattr(os, "makedirs", _fail)
-        run(planner(full_config), full_config)
+        run(planner(placeholder_only_config), placeholder_only_config)

@@ -257,20 +257,23 @@ class TestDryRun:
     # ---- ordering ---------------------------------------------------------
 
     def test_dry_run_scaffold_before_git(self, tmp_path):
+        # uv is enabled by default and owns local Git initialisation itself,
+        # so the git-related step here is "uv init ...", not a separate
+        # "Initialise a local Git repository" placeholder.
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
         lines = _step_lines(result)
         scaffold_idx = _step_index(lines, "scaffold ")
-        git_idx = _step_index(lines, "initialise a local git repository")
+        git_idx = _step_index(lines, "uv init")
         assert scaffold_idx is not None, "scaffold step not found in output"
-        assert git_idx is not None, "git step not found in output"
+        assert git_idx is not None, "uv init step not found in output"
         assert scaffold_idx < git_idx
 
     def test_dry_run_git_before_docker(self, tmp_path):
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
         lines = _step_lines(result)
-        git_idx = _step_index(lines, "initialise a local git repository")
+        git_idx = _step_index(lines, "uv init")
         docker_idx = _step_index(lines, "add docker support files")
-        assert git_idx is not None, "git step not found in output"
+        assert git_idx is not None, "uv init step not found in output"
         assert docker_idx is not None, "docker step not found in output"
         assert git_idx < docker_idx
 
@@ -297,7 +300,7 @@ class TestDryRun:
             return found
 
         scaffold_i = idx_of("scaffold ")
-        git_i = idx_of("initialise a local git repository")
+        git_i = idx_of("uv init")
         docker_i = idx_of("add docker support files")
         github_i = idx_of("github repository")
         vscode_i = idx_of("open the project in vs code")
@@ -308,7 +311,7 @@ class TestDryRun:
     def test_dry_run_minimal_prints_no_optional_steps(self, tmp_path):
         result = _invoke(
             "minimal", "--path", str(tmp_path),
-            "--no-git", "--no-docker", "--no-open", "--dry-run",
+            "--no-uv", "--no-git", "--no-docker", "--no-open", "--dry-run",
         )
         assert result.exit_code == 0
         lines = _step_lines(result)
