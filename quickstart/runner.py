@@ -7,6 +7,7 @@ from typing import Optional
 
 from quickstart.config import ProjectConfig
 from quickstart.steps import Plan, Step
+from quickstart.steps.template_files import TemplateFilesStep
 from quickstart.steps.uv_init import GitInitStep, UvInitStep
 
 
@@ -48,15 +49,17 @@ def planner(config: ProjectConfig, path: Optional[Path] = None) -> Plan:
 
     The fixed ordering is:
 
-    1. ``scaffold``      – always present; creates the project skeleton.
-    2. ``uv_init``        – present when ``config.uv`` is ``True``; owns local
+    1. ``scaffold``        – always present; creates the project skeleton.
+    2. ``uv_init``         – present when ``config.uv`` is ``True``; owns local
        Git initialisation itself (via ``--vcs none`` when ``config.git`` is
        ``False``), so ``git_init`` never also appears alongside it.
        ``git_init`` – present when ``config.uv`` is ``False`` and
        ``config.git`` is ``True`` (direct ``git init`` fallback).
-    3. ``docker``        – present when ``config.docker`` is ``True``.
-    4. ``github_create`` – present when ``config.github_create`` is ``True``.
-    5. ``vscode_open``   – present when ``config.vscode_open`` is ``True``.
+    3. ``template_files``  – present immediately after the init step, only
+       when an init step (uv_init or git_init) is included in the plan.
+    4. ``docker``          – present when ``config.docker`` is ``True``.
+    5. ``github_create``   – present when ``config.github_create`` is ``True``.
+    6. ``vscode_open``     – present when ``config.vscode_open`` is ``True``.
 
     Parameters
     ----------
@@ -64,8 +67,9 @@ def planner(config: ProjectConfig, path: Optional[Path] = None) -> Plan:
         Project configuration driving the plan.
     path:
         The raw value of the ``--path`` CLI option, or ``None`` to use the
-        default workspace -- forwarded to ``uv_init``/``git_init`` so they
-        resolve the same real target directory as ``CreateProjectStep``.
+        default workspace -- forwarded to ``uv_init``/``git_init`` and
+        ``template_files`` so they resolve the same real target directory as
+        ``CreateProjectStep``.
 
     Returns
     -------
@@ -88,12 +92,20 @@ def planner(config: ProjectConfig, path: Optional[Path] = None) -> Plan:
     # Step 2 – initialise the project via uv, or fall back to a direct git
     # init when uv is disabled. uv owns local Git itself on the default
     # path, so these are mutually exclusive, never both present.
+    init_step_added = False
     if config.uv:
         steps.append(UvInitStep(config, path=path))
+        init_step_added = True
     elif config.git:
         steps.append(GitInitStep(config, path=path))
+        init_step_added = True
 
-    # Step 3 – add Docker support when requested.
+    # Step 3 – write template-driven files immediately after the init step,
+    # but only when an init step was actually added to the plan.
+    if init_step_added:
+        steps.append(TemplateFilesStep(path=path))
+
+    # Step 4 – add Docker support when requested.
     if config.docker:
         steps.append(
             _NoOpStep(
@@ -102,7 +114,7 @@ def planner(config: ProjectConfig, path: Optional[Path] = None) -> Plan:
             )
         )
 
-    # Step 4 – create a remote GitHub repository when requested.
+    # Step 5 – create a remote GitHub repository when requested.
     if config.github_create:
         visibility = "public" if config.public else ("private" if config.private else "default")
         steps.append(
@@ -112,7 +124,7 @@ def planner(config: ProjectConfig, path: Optional[Path] = None) -> Plan:
             )
         )
 
-    # Step 5 – open the project in VS Code when requested.
+    # Step 6 – open the project in VS Code when requested.
     if config.vscode_open:
         steps.append(
             _NoOpStep(

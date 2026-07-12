@@ -16,8 +16,9 @@ preflight.py — Lightweight PATH-based availability checks for uv and git binar
   check_uv (function) — 20-41 — Returns resolved path to uv executable or None if absent
   check_git (function) — 44-65 — Returns resolved path to git executable or None if absent
 runner.py — Plan assembly and execution engine for project scaffolding steps
-  planner (function) — 43-124 — Assembles ordered step plan from config with fixed ordering (scaffold, init, docker, github, vscode)
-  run (function) — 131-151 — Executes plan steps in sequence, halting on first failure
+  _NoOpStep (class) — 18-37 — Placeholder step performing no side effects, used to establish plan ordering and printing
+  planner (function) — 44-136 — Assembles ordered step plan from config with fixed ordering (scaffold, init, template_files, docker, github_create, vscode_open)
+  run (function) — 143-163 — Executes plan steps in sequence, halting on first failure
 subprocess_runner.py — Subprocess execution wrapper with output capture and typed exception handling
   CommandError (class) — 21-47 — Exception carrying command, return code, and stderr for failed subprocess execution
   run_command (function) — 55-105 — Executes command in working directory, capturing stdout/stderr or raising CommandError

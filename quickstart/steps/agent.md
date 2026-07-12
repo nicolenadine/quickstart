@@ -5,6 +5,8 @@ __init__.py — Protocol and Plan classes for ordered step execution in quicksta
   Plan (class) — 43-71 — Ordered sequence container for Step objects with iteration support
 create_project.py — Step that creates and validates the resolved target project directory
   CreateProjectStep (class) — 14-73 — Creates target project directory after name validation and path resolution
+template_files.py — Step that writes template-driven files into the project directory
+  TemplateFilesStep (class) — 15-100 — Writes README.md, .env.example, and .gitignore from the selected template
 uv_init.py — Steps for initialising projects via uv init or git init with config-driven command construction
   _build_uv_init_command (function) — 15-31 — Constructs uv init argument list from project config and target path
   UvInitStep (class) — 34-69 — Runs uv init with config flags translated to uv arguments

@@ -254,6 +254,27 @@ class TestDryRun:
         lines = _step_lines(result)
         assert _step_index(lines, "github repository") is None
 
+    def test_dry_run_template_files_step_present_by_default(self, tmp_path):
+        result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
+        lines = _step_lines(result)
+        assert _step_index(lines, "readme.md") is not None, (
+            "template-files step (README.md) not found in dry-run output"
+        )
+
+    def test_dry_run_template_files_step_mentions_env_example(self, tmp_path):
+        result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
+        lines = _step_lines(result)
+        assert _step_index(lines, ".env.example") is not None, (
+            "template-files step (.env.example) not found in dry-run output"
+        )
+
+    def test_dry_run_template_files_step_mentions_gitignore(self, tmp_path):
+        result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
+        lines = _step_lines(result)
+        assert _step_index(lines, ".gitignore") is not None, (
+            "template-files step (.gitignore) not found in dry-run output"
+        )
+
     # ---- ordering ---------------------------------------------------------
 
     def test_dry_run_scaffold_before_git(self, tmp_path):
@@ -267,6 +288,24 @@ class TestDryRun:
         assert scaffold_idx is not None, "scaffold step not found in output"
         assert git_idx is not None, "uv init step not found in output"
         assert scaffold_idx < git_idx
+
+    def test_dry_run_git_before_template_files(self, tmp_path):
+        result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
+        lines = _step_lines(result)
+        git_idx = _step_index(lines, "uv init")
+        tf_idx = _step_index(lines, "readme.md")
+        assert git_idx is not None, "uv init step not found in output"
+        assert tf_idx is not None, "template-files step not found in output"
+        assert git_idx < tf_idx
+
+    def test_dry_run_template_files_before_docker(self, tmp_path):
+        result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
+        lines = _step_lines(result)
+        tf_idx = _step_index(lines, "readme.md")
+        docker_idx = _step_index(lines, "add docker support files")
+        assert tf_idx is not None, "template-files step not found in output"
+        assert docker_idx is not None, "docker step not found in output"
+        assert tf_idx < docker_idx
 
     def test_dry_run_git_before_docker(self, tmp_path):
         result = _invoke("demoproject", "--path", str(tmp_path), "--dry-run")
@@ -286,8 +325,8 @@ class TestDryRun:
         assert vscode_idx is not None, "vscode step not found in output"
         assert docker_idx < vscode_idx
 
-    def test_dry_run_full_order_scaffold_git_docker_github_vscode(self, tmp_path):
-        """All five steps must appear in the documented order."""
+    def test_dry_run_full_order_scaffold_git_template_files_docker_github_vscode(self, tmp_path):
+        """All six steps must appear in the documented order."""
         result = _invoke(
             "demoproject", "--path", str(tmp_path), "--gh", "--dry-run"
         )
@@ -301,10 +340,11 @@ class TestDryRun:
 
         scaffold_i = idx_of("scaffold ")
         git_i = idx_of("uv init")
+        tf_i = idx_of("readme.md")
         docker_i = idx_of("add docker support files")
         github_i = idx_of("github repository")
         vscode_i = idx_of("open the project in vs code")
-        assert scaffold_i < git_i < docker_i < github_i < vscode_i
+        assert scaffold_i < git_i < tf_i < docker_i < github_i < vscode_i
 
     # ---- no output when all optional steps disabled -----------------------
 
