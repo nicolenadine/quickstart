@@ -95,8 +95,9 @@ class TestPlannerProducesOrderedPlan:
 
     # ---- step counts -------------------------------------------------------
 
-    def test_five_steps_when_all_flags_enabled(self, full_config):
-        assert len(planner(full_config)) == 5
+    def test_six_steps_when_all_flags_enabled(self, full_config):
+        # scaffold + uv_init + template_files + docker + github_create + vscode_open
+        assert len(planner(full_config)) == 6
 
     def test_one_step_when_all_optional_flags_disabled(self, minimal_config):
         assert len(planner(minimal_config)) == 1
@@ -125,12 +126,19 @@ class TestPlannerProducesOrderedPlan:
 
     def test_full_plan_step_order(self, full_config):
         names = [s.name for s in planner(full_config)]
-        assert names == ["scaffold", "uv_init", "docker", "github_create", "vscode_open"]
+        assert names == [
+            "scaffold",
+            "uv_init",
+            "template_files",
+            "docker",
+            "github_create",
+            "vscode_open",
+        ]
 
     # ---- optional steps absent in minimal ---------------------------------
 
     @pytest.mark.parametrize(
-        "absent", ["uv_init", "git_init", "docker", "github_create", "vscode_open"]
+        "absent", ["uv_init", "git_init", "template_files", "docker", "github_create", "vscode_open"]
     )
     def test_optional_step_absent_in_minimal_config(self, minimal_config, absent):
         names = [s.name for s in planner(minimal_config)]
@@ -173,6 +181,47 @@ class TestPlannerProducesOrderedPlan:
         names = [s.name for s in planner(config)]
         assert "uv_init" not in names
         assert "git_init" not in names
+
+    def test_template_files_step_present_when_uv_true(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=True, git=True, docker=False, github_create=False, vscode_open=False,
+        )
+        assert "template_files" in [s.name for s in planner(config)]
+
+    def test_template_files_step_present_when_git_only(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=False, git=True, docker=False, github_create=False, vscode_open=False,
+        )
+        assert "template_files" in [s.name for s in planner(config)]
+
+    def test_template_files_step_absent_when_no_init_step(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=False, git=False, docker=False, github_create=False, vscode_open=False,
+        )
+        assert "template_files" not in [s.name for s in planner(config)]
+
+    def test_template_files_immediately_after_uv_init(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=True, git=True, docker=False, github_create=False, vscode_open=False,
+        )
+        names = [s.name for s in planner(config)]
+        uv_idx = names.index("uv_init")
+        tf_idx = names.index("template_files")
+        assert tf_idx == uv_idx + 1
+
+    def test_template_files_immediately_after_git_init(self, tmp_path):
+        config = ProjectConfig(
+            project_name="p", target_path=tmp_path,
+            uv=False, git=True, docker=False, github_create=False, vscode_open=False,
+        )
+        names = [s.name for s in planner(config)]
+        git_idx = names.index("git_init")
+        tf_idx = names.index("template_files")
+        assert tf_idx == git_idx + 1
 
     def test_docker_step_present_when_docker_true(self, tmp_path):
         config = ProjectConfig(
@@ -273,14 +322,14 @@ class TestPlannerProducesOrderedPlan:
 
     def test_plan_is_iterable(self, full_config):
         steps = list(planner(full_config))
-        assert len(steps) == 5
+        assert len(steps) == 6
 
     def test_plan_steps_property_returns_copy(self, full_config):
         plan = planner(full_config)
         # Mutating the returned list must not change the Plan.
         copy = plan.steps
         copy.clear()
-        assert len(plan) == 5
+        assert len(plan) == 6
 
 
 # ===========================================================================
